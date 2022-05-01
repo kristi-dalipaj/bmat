@@ -1,0 +1,139 @@
+1) ReadMe provided the process
+2) Reconciliation Logic : Provided in the docstrigns as well
+a) If RawWork iswc already exists in the Work, union the contributors. check if there is a possible issue with title.
+if titles different save it in the RawData error as something that could be looked at on another moment.
+b) if iswc exist in RawWork but Work isn't found :
+    b1)check if there is a Work with a title match and overlapping contribs (as in provided in pdf requests)
+        b11)In this check I filter that iswc is empty, because if there already exists a Work with iswc
+            and a possible matching title and overlapping i don't want it touched.
+            I consider ISWC as a source of truth. So that Work will be left alone.
+      if this Work exists(title_match and overlap in contribs) I update its ISWC with the RawWork ISWC and union contribs
+      if this Work doesn't exist - Create From Scratch
+c) if iswc doesn't exist in RawWork:
+    c1) check if there is a Work with a title match and overlapping contribs
+    If this Work exists - union the contribs (don't touch the ISWC of Work)
+    if this Work doesn't exist - Create From Scratch
+
+
+3)Risks :
+ISWC is a source of truth but there might be typos in it.
+There is a high possibility that the check asked in file (matching title and overlapping contribs)
+return a high number of results. F.E Remixes, Remasters, Samples etc
+There is a high possibility of typos in title or not full titles that can't be reconciled if ISWC misses.
+F.E one source might store the whole title + singers and one only the title etc etc
+Contributors : A source invested in musicians might return just the musicians while one on instrumentalists might return
+just instrumentalist and they can't be reconciled if ISWC misses.
+
+
+4)Automatize :
+Either
+    Add Redis/Celery/Celery Beat in docker
+      redis:
+        image: redis:alpine
+      celery:
+        build: ./project
+        command: celery -A core worker -l info
+        volumes:
+          - ./project/:/usr/src/app/
+        environment:
+          - DEBUG=1
+          - SECRET_KEY=dbaa1_i7%*3r9-=z-+_mz4r-!qeed@(-a_r(g@k8jo8y3r27%m
+          - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+        depends_on:
+          - redis
+      celery-beat:
+        build: ./project
+        command: celery -A core beat -l info
+        volumes:
+          - ./project/:/usr/src/app/
+        environment:
+          - DEBUG=1
+          - SECRET_KEY=dbaa1_i7%*3r9-=z-+_mz4r-!qeed@(-a_r(g@k8jo8y3r27%m
+          - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+        depends_on:
+          - redis
+
+    Then create 2 tasks on
+    CELERY_BEAT_SCHEDULE =
+    ingest : runs every x minutes
+    delete_ingest : runs every y weeks
+
+
+    If a new file comes just put it on a folder we specify on settings. (in my case its work/data).
+    This is changeable and can be provided on docker or changed in settings. If to be given in dockerfile web environment
+    should be updated to include FILE_DIRECTORY = "somewhere" and then on settings
+    CSV_FOLDER_POSITION = os.environ.get('POSTGRES_PASSWORD')
+    On settings i have also provided a splitter = "|" for the contribs. If we want it to be scaled we can build a model
+    called sources which can have the field splitter there . (useful if different sources provide different splitters for
+    contribs)
+
+or
+    Allow agents to hit an api such as api/works/from_csv/ - with a csv in the body
+    to do this build a ViewSet of Works (so that it can be generalized with CRUDS as well) and add an
+    action : def from_csv
+    which gets the file and then does what the logic is in def ingest()
+
+I am not implementing this because I don't want to implement what wasn't asked.
+
+
+Part 2 :
+Views and Serializers can be grouped in folder but it didn't feel necessary for this one since it will be few classes.
+
+Added a model Serializer for Work (for easier view)
+Added a WorkEnrichSerializer - that returns the data.
+
+does a check if one of the provided element in call isn't found (for user help).
+returns a json body with the data and the message
+
+Now there are 3 variables that will define speed (related to logic, because we can have net speed, and all that other stuff)
+
+1) # db_rows
+2) # api hits
+3) # iswc_codes
+
+in our edge case we are asked to consider 1 is quite big , 20 mil
+and for that we have 4 cases
+a) 2) 3) small - Not an issue
+b) 2) small 3) big - Not an issue (won't need to do a full db scan)
+c) 2) big 3) small  - Not an issue (will do a full scan probably but still if repeated few times no issue)
+2) big 3) big - Issue
+To fix this :
+a) add db_index= True on iswc
+b) consider using elasticsearch
+c) partion db (f.e T000... to T099.... are placed in partion 1, T100 to T199 are in partion 2 , and so on)(partion on iswc)
+this makes the querys run on approximately 2 mil instead of 20 mil (which is a considerable speed up)
+like
+
+from django.db import models
+from psqlextra.types import PostgresPartitioningMethod
+from psqlextra.models import PostgresPartitionedModel
+
+class Work(PostgresPartitionedModel):
+    class PartitioningMeta:
+        method = PostgresPartitioningMethod.RANGE
+        key = ["iswc"]
+
+Then creating the partions  with migration
+from django.db import migrations, models
+
+from psqlextra.backend.migrations.operations import PostgresAddRangePartition
+
+class Migration(migrations.Migration):
+    operations = [
+        PostgresAddRangePartition(
+           model_name="work",
+           name="pt_1",
+           from_values="T000....",
+           to_values="T099...",
+        ),
+    ]
+
+class Migration(migrations.Migration):
+    operations = [
+        PostgresAddRangePartition(
+           model_name="work",
+           name="pt_2",
+           from_values="T100....",
+           to_values="T199...",
+        ),
+    ]
