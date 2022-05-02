@@ -8,17 +8,21 @@ from rest_framework import viewsets
 
 
 class WorkViewSet(viewsets.ModelViewSet):
-    """using a view set here because its scalable and we can have get or post methods in the future."""
-
+    """
+    Using viewset because we might want to create works from api
+    and also allows gets/lists/deletes/updates
+    """
     serializer_class = WorkSerializer
     queryset = Work.objects.all()
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['post'], name='Enrich ISWC')
     def enrich(self, request, *args, **kwargs):
-        def missing_info(codes, object_with_codes):
-            """one of the costliest operations. Decided to add it for clarity for the user."""
-            return str(list(set(codes) - set(object_with_codes.values_list('iswc', flat=True))))
+        def missing_codes(codes, works_qs):
+            """Finds missing elements"""
+            set_codes = set(codes)
+            set_iswc = set(works_qs.values_list('iswc', flat=True))
+            return str(sorted(list(set_codes - set_iswc)))
 
         def clean(data):
             return [el for el in data if el]
@@ -27,8 +31,8 @@ class WorkViewSet(viewsets.ModelViewSet):
         iswcs = clean(iswcs)
         works = Work.objects.filter(iswc__in=iswcs)
         message = "Enrichment complete" if len(works) == len(iswcs) else \
-            "Enrichment complete, but some ISWC where not found in database or were cleaned " \
-            "before hand. Missing ISWCS : " + missing_info(iswcs, works)
+            "Enrichment complete. Some ISWC where not found in database. " \
+            "Missing ISWCS : " + missing_codes(iswcs, works)
 
         return Response({
             "data": WorkEnrichSerializer(works, many=True).data,

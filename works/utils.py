@@ -1,8 +1,6 @@
 """
-this file will hold the cron jobs
-This functions will be called from a rabbit mq at a frequency defined by the user.
-
-delete f.e can be weekly while ingest hourly
+this file will hold util functions
+some for cron jobs, some for data building
 """
 import glob
 import os
@@ -24,8 +22,11 @@ def ingest():
 
 def delete_ingested():
     """
-    On the folder deletes all files who's names and hash matches with existing rows.
-    Using hash and name and ingested as check to make absolutely sure no important file is deleted.
+    On the directory provided in settings
+    deletes all csv files who's names and checksum
+    matches with existing WorkFiles.
+    Using checksum, file_name, ingested as check
+    to make absolutely sure no important file is deleted.
     """
     path = CSV_FOLDER_POSITION
     csv_files = glob.glob(os.path.join(path, "*.csv"))
@@ -33,7 +34,11 @@ def delete_ingested():
         file = open(csv_file)
         checksum_str = calculate_checksum(file)
         file_name = csv_file.split("/")[-1]
-        if WorkFile.objects.filter(name=file_name, ingested=True, checksum_str=checksum_str):
+        if WorkFile.objects.filter(
+                name=file_name,
+                ingested=True,
+                checksum_str=checksum_str
+        ):
             os.remove(csv_file)
 
 
@@ -46,7 +51,8 @@ def print_data():
     print("RAW WORKS")
     print("Title\tContributors\tISWC\tIssues\tErrors\tFile Name\t Processed")
     for row in RawWork.objects.all():
-        print(row.title, row.contributors, row.iswc, row.issues, row.errors, row.file.name, row.processed)
+        print(row.title, row.contributors, row.iswc, row.issues,
+              row.errors, row.file.name, row.processed)
 
     print("WORKS")
     print("Title\tContributors\tISWC\tRaw")
@@ -60,17 +66,17 @@ def clean():
     print(RawWork.objects.all().delete())
 
 
-def create_on_mass(reps=15000000):
+def create_on_mass(reps=15000000, partitions=500):
     from random import randrange
-    partitions = 500
     for i in range(0, partitions):
-        print("REP", i)
         bulk_works = []
         for j in range(0, reps//partitions):
             bulk_works.append(Work(
                 title="Title" + str(i),
                 contributors=[i, i - 1, i + 1],
-                iswc="T" + str(randrange(100, 1000)) + str(randrange(100, 1000)) + str(randrange(100, 1000)),
+                iswc="T" + str(randrange(100, 1000)) +
+                     str(randrange(100, 1000)) +
+                     str(randrange(100, 1000)),
             ))
 
         Work.objects.bulk_create(bulk_works, ignore_conflicts=True)
