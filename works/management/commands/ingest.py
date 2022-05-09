@@ -12,6 +12,8 @@ class Command(BaseCommand):
            'Directory is set in settings.py.'
 
     def handle(self, *args, **options):
+        """ Custom Command to handle ingest. Retrieves all file from a settings defined path and processes them
+        by creating and ingesting works."""
         path = CSV_FOLDER_POSITION
         csv_files = glob.glob(os.path.join(path, "*.csv"))
         for csv_file in csv_files:

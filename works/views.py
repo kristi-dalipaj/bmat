@@ -18,6 +18,10 @@ class WorkViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], name='Enrich ISWC')
     def enrich(self, request, *args, **kwargs):
+        """ custom viewset action that will enrich the data (ids) with the contribs.
+        Works by getting the codes first, cleaning the data (removing empty elements) .
+        Queries the db according to the code and returns data. To make it helpful for the user,
+        also returns the codes not found in db."""
         def missing_codes(codes, works_qs):
             """Finds missing elements"""
             set_codes = set(codes)
@@ -25,6 +29,7 @@ class WorkViewSet(viewsets.ModelViewSet):
             return str(sorted(list(set_codes - set_iswc)))
 
         def clean(data):
+            """removes blank elements"""
             return [el for el in data if el]
 
         iswcs = request.data.get("iswc", [])

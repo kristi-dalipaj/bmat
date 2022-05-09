@@ -7,6 +7,7 @@ from bmat.settings import SPLITTER
 
 
 def union(contributors_1, contributors_2):
+    """union of 2 lists"""
     contributors = set(contributors_1)
     contributors.update(contributors_2)
     return list(contributors)
@@ -15,6 +16,8 @@ def union(contributors_1, contributors_2):
 class WorkFileManager(models.Manager):
 
     def create_from_file_name(self, csv_file_name):
+        """creates a WorkFile from a correct file name.
+        Creates the RawWorks for each row then processes them all. """
         from works.utils import calculate_checksum
 
         file = open(csv_file_name)

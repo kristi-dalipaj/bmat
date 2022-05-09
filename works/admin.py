@@ -1,3 +1,6 @@
 from django.contrib import admin
+from works.models import WorkFile, Work, RawWork
 
-# Register your models here.
+admin.site.register(WorkFile)
+admin.site.register(RawWork)
+admin.site.register(Work)

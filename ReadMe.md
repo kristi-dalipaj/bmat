@@ -39,4 +39,18 @@ from some agent (postman, other service) with a body of
 }
 ```
 
-it will enrich the list with contributors
+it will enrich the list with contributors.
+
+
+If you want to use django Admin page :
+
+run 
+
+```sh
+ docker-compose run web python3 manage.py createsuperuser 
+ ```
+Fill the data accordingly.
+
+Bypass checks if you want.
+
+Use that user (username, pass) to login to admin page.

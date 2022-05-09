@@ -2,3 +2,4 @@ Django~=4.0.4
 psycopg2-binary
 djangorestframework
 pep8
+drf-yasg
